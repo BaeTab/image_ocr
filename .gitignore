@@ -1,0 +1,23 @@
+# Build output
+[Bb]in/
+[Oo]bj/
+[Pp]ublish/
+*.user
+
+# Visual Studio
+.vs/
+*.suo
+
+# Rider
+.idea/
+
+# Publish artifacts (단일 exe 는 GitHub Release 로 배포)
+*.exe
+publish/
+
+# OS
+Thumbs.db
+Desktop.ini
+
+# Logs
+*.log

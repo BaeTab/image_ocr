@@ -1,0 +1,60 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- windows10.0.19041.0 타깃: Windows.Media.Ocr(WinRT) API 사용을 위해 필요 -->
+    <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+    <SupportedOSPlatformVersion>10.0.17763.0</SupportedOSPlatformVersion>
+    <Nullable>enable</Nullable>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <ForceDesignerDpiUnaware>true</ForceDesignerDpiUnaware>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <!-- Tesseract 네이티브 DLL(x64) 로딩을 위해 x64 고정 -->
+    <Platforms>AnyCPU;x64</Platforms>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == ''">win-x64</RuntimeIdentifier>
+    <AssemblyName>ImageOcr</AssemblyName>
+    <ApplicationTitle>이미지 OCR</ApplicationTitle>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <!-- 릴리즈 태그(vX.Y.Z)와 비교되는 앱 버전 -->
+    <Version>1.0.0</Version>
+    <FileVersion>1.0.0.0</FileVersion>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+
+    <!-- 단일파일 게시 옵션(publish 시에만 효과). 네이티브 라이브러리도 exe 안에 포함. -->
+    <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
+    <EnableCompressionInSingleFile>true</EnableCompressionInSingleFile>
+    <!-- 단일 exe 크기 축소: DevExpress 위성 리소스는 영어만 포함 -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="DevExpress.Win.Design" Version="25.1.*" />
+    <PackageReference Include="Tesseract" Version="5.2.0" />
+  </ItemGroup>
+
+  <!-- 단일 exe 를 위해 tessdata 와 네이티브 DLL 을 exe 안에 임베드(Release/게시). -->
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <EmbeddedResource Include="tessdata\kor.traineddata">
+      <LogicalName>tessdata/kor.traineddata</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="tessdata\eng.traineddata">
+      <LogicalName>tessdata/eng.traineddata</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="native\x64\tesseract50.dll">
+      <LogicalName>runtime/tesseract50.dll</LogicalName>
+    </EmbeddedResource>
+    <EmbeddedResource Include="native\x64\leptonica-1.82.0.dll">
+      <LogicalName>runtime/leptonica-1.82.0.dll</LogicalName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <!-- Debug 빌드에서는 tessdata 를 실행 파일 옆에 복사(빠른 반복용). -->
+  <ItemGroup Condition="'$(Configuration)' == 'Debug'">
+    <None Include="tessdata\**\*.traineddata">
+      <Link>tessdata\%(RecursiveDir)%(Filename)%(Extension)</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
+</Project>
