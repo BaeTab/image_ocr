@@ -22,6 +22,17 @@ namespace image_ocr
         private bool _isRunning;
         private readonly AppSettings _settings;
 
+        // 코드로 생성하는 인식 모드(PSM) 드롭다운(디자이너 재직렬화 이슈 회피).
+        private LabelControl _labelPsm = null!;
+        private ComboBoxEdit _comboPsm = null!;
+        private static readonly (string label, OcrPageMode mode)[] PsmOptions =
+        {
+            ("단락 (권장)", OcrPageMode.Block),
+            ("자동", OcrPageMode.Auto),
+            ("한 줄", OcrPageMode.Line),
+            ("성김 텍스트", OcrPageMode.Sparse),
+        };
+
         private static readonly string[] SupportedExtensions =
             { ".png", ".jpg", ".jpeg", ".bmp", ".gif", ".tif", ".tiff", ".webp" };
 
@@ -29,6 +40,7 @@ namespace image_ocr
         {
             InitializeComponent();
             SetupImageCanvas();
+            SetupPsmControl();
 
             _settings = AppSettings.Load();
 
@@ -56,6 +68,27 @@ namespace image_ocr
             };
             splitContainer.Panel1.Controls.Add(imageCanvas);
             imageCanvas.BringToFront();
+        }
+
+        /// <summary>인식 모드(PSM) 드롭다운을 코드로 만들어 상단 패널에 배치한다.</summary>
+        private void SetupPsmControl()
+        {
+            _labelPsm = new LabelControl { Text = "모드:", Location = new Point(590, 56), AutoSizeMode = LabelAutoSizeMode.None, Size = new Size(34, 14) };
+            _comboPsm = new ComboBoxEdit { Location = new Point(626, 51), Size = new Size(150, 24), Name = "comboPsm" };
+            _comboPsm.Properties.TextEditStyle = DevExpress.XtraEditors.Controls.TextEditStyles.DisableTextEditor;
+            foreach (var (label, _) in PsmOptions)
+                _comboPsm.Properties.Items.Add(label);
+            _comboPsm.SelectedIndex = 0;
+            _comboPsm.SelectedIndexChanged += (_, _) => ApplyPageMode();
+
+            panelTop.Controls.Add(_labelPsm);
+            panelTop.Controls.Add(_comboPsm);
+        }
+
+        private void ApplyPageMode()
+        {
+            int i = Math.Clamp(_comboPsm.SelectedIndex, 0, PsmOptions.Length - 1);
+            _tesseract?.SetPageMode(PsmOptions[i].mode);
         }
 
         /// <summary>임베드된 app.ico(다중 해상도)를 창·작업표시줄 아이콘으로 설정한다.</summary>
@@ -143,6 +176,10 @@ namespace image_ocr
             chkBinarize.Checked = _settings.Binarize;
             chkUpscale.Checked = _settings.Upscale2x;
 
+            if (_settings.PageMode >= 0 && _settings.PageMode < PsmOptions.Length)
+                _comboPsm.SelectedIndex = _settings.PageMode;
+            ApplyPageMode();
+
             if (_settings.WindowWidth > 400 && _settings.WindowHeight > 300)
             {
                 StartPosition = FormStartPosition.Manual;
@@ -150,7 +187,14 @@ namespace image_ocr
                 CenterToScreen();
             }
 
-            comboLang.Enabled = SelectedEngine is TesseractOcrEngine;
+            UpdateTesseractControlsEnabled();
+        }
+
+        private void UpdateTesseractControlsEnabled()
+        {
+            bool isTess = SelectedEngine is TesseractOcrEngine;
+            comboLang.Enabled = isTess;
+            _comboPsm.Enabled = isTess;
         }
 
         private void WireEvents()
@@ -163,8 +207,7 @@ namespace image_ocr
             btnClear.Click += (_, _) => ClearAll();
             btnBatch.Click += async (_, _) => await BatchAsync();
 
-            comboEngine.SelectedIndexChanged += (_, _) =>
-                comboLang.Enabled = SelectedEngine is TesseractOcrEngine;
+            comboEngine.SelectedIndexChanged += (_, _) => UpdateTesseractControlsEnabled();
             comboLang.SelectedIndexChanged += (_, _) => ApplyLanguageSelection();
             chkHighlight.CheckedChanged += (_, _) =>
                 imageCanvas.Highlights = chkHighlight.Checked ? _lastWords : null;
@@ -554,7 +597,9 @@ namespace image_ocr
             btnClear.Enabled = !busy;
             btnBatch.Enabled = !busy;
             comboEngine.Enabled = !busy;
-            comboLang.Enabled = !busy && SelectedEngine is TesseractOcrEngine;
+            bool isTess = SelectedEngine is TesseractOcrEngine;
+            comboLang.Enabled = !busy && isTess;
+            _comboPsm.Enabled = !busy && isTess;
         }
 
         private void UpdateStatus(string text) => labelStatus.Text = text;
@@ -583,6 +628,7 @@ namespace image_ocr
             {
                 _settings.EngineIndex = comboEngine.SelectedIndex;
                 _settings.Languages = _tesseract?.SelectedLanguages.ToArray() ?? Array.Empty<string>();
+                _settings.PageMode = _comboPsm.SelectedIndex;
                 _settings.Grayscale = chkGray.Checked;
                 _settings.EnhanceContrast = chkContrast.Checked;
                 _settings.Binarize = chkBinarize.Checked;

@@ -25,6 +25,15 @@ namespace image_ocr.Ocr
     /// <summary>인식된 단어 하나와 그 이미지 상 위치(픽셀). 하이라이트에 사용.</summary>
     public sealed record OcrWordBox(string Text, Rectangle Bounds);
 
+    /// <summary>페이지 분할(인식) 모드 — UI 노출용. Tesseract 의 PSM 에 대응.</summary>
+    public enum OcrPageMode
+    {
+        Block,   // 단락 하나로 가정 (권장, 한글 정확도 높음)
+        Auto,    // 자동 분할
+        Line,    // 한 줄
+        Sparse,  // 성김 텍스트(흩어진 글자)
+    }
+
     /// <summary>OCR 실행 결과.</summary>
     public sealed record OcrResult(
         string Text,

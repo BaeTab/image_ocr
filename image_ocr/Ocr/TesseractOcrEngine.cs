@@ -23,6 +23,9 @@ namespace image_ocr.Ocr
         private string _language;   // 예: "kor+eng"
         private volatile bool _disposed;
 
+        // 페이지 분할 모드. 한글 텍스트 블록은 SingleBlock 이 Auto 보다 정확도가 훨씬 높다.
+        private volatile PageSegMode _psm = PageSegMode.SingleBlock;
+
         public TesseractOcrEngine()
         {
             // 단일파일 환경에서도 동작하도록 tessdata 경로를 확보(+ 네이티브 탐색경로 설정).
@@ -60,6 +63,15 @@ namespace image_ocr.Ocr
         public IReadOnlyList<string> SelectedLanguages =>
             _language.Split('+', StringSplitOptions.RemoveEmptyEntries);
 
+        /// <summary>인식 모드(페이지 분할)를 설정한다. 기본은 단락(Block).</summary>
+        public void SetPageMode(OcrPageMode mode) => _psm = mode switch
+        {
+            OcrPageMode.Auto => PageSegMode.Auto,
+            OcrPageMode.Line => PageSegMode.SingleLine,
+            OcrPageMode.Sparse => PageSegMode.SparseText,
+            _ => PageSegMode.SingleBlock,
+        };
+
         /// <summary>인식 언어를 바꾼다. 다음 인식 때 엔진이 새 언어로 재생성된다.</summary>
         public void SetLanguages(IEnumerable<string> languages)
         {
@@ -94,7 +106,13 @@ namespace image_ocr.Ocr
                 lock (_gate)
                 {
                     ObjectDisposedException.ThrowIf(_disposed, this);
-                    _engine ??= new TesseractEngine(_tessdataPath, _language, EngineMode.Default);
+                    if (_engine == null)
+                    {
+                        _engine = new TesseractEngine(_tessdataPath, _language, EngineMode.Default);
+                        // 정확도 향상: 해상도 힌트(없으면 저해상 이미지 인식이 크게 나빠짐) + 단어 간격 보존.
+                        _engine.SetVariable("user_defined_dpi", "300");
+                        _engine.SetVariable("preserve_interword_spaces", "1");
+                    }
 
                     // Bitmap → PNG 바이트 → Pix (System.Drawing 직접 의존 없이 안전하게 변환).
                     byte[] png;
@@ -105,7 +123,7 @@ namespace image_ocr.Ocr
                     }
 
                     using Pix pix = Pix.LoadFromMemory(png);
-                    using Page page = _engine.Process(pix);
+                    using Page page = _engine.Process(pix, _psm);
 
                     string text = page.GetText() ?? string.Empty;
                     float confidence = page.GetMeanConfidence(); // 0.0 ~ 1.0

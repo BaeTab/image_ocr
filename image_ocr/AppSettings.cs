@@ -8,6 +8,7 @@ namespace image_ocr
     {
         public int EngineIndex { get; set; }
         public string[] Languages { get; set; } = Array.Empty<string>();
+        public int PageMode { get; set; }   // 0=단락(Block), 1=자동, 2=한 줄, 3=성김
         public bool Grayscale { get; set; }
         public bool EnhanceContrast { get; set; }
         public bool Binarize { get; set; }
