@@ -18,9 +18,9 @@
     <ApplicationTitle>이미지 OCR</ApplicationTitle>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <!-- 릴리즈 태그(vX.Y.Z)와 비교되는 앱 버전 -->
-    <Version>1.1.0</Version>
-    <FileVersion>1.1.0.0</FileVersion>
-    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <Version>1.1.1</Version>
+    <FileVersion>1.1.1.0</FileVersion>
+    <AssemblyVersion>1.1.1.0</AssemblyVersion>
 
     <!-- 단일파일 게시 옵션(publish 시에만 효과). 네이티브 라이브러리도 exe 안에 포함. -->
     <IncludeNativeLibrariesForSelfExtract>true</IncludeNativeLibrariesForSelfExtract>
