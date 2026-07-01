@@ -22,12 +22,16 @@ namespace image_ocr.Ocr
         Task<OcrResult> RecognizeAsync(Bitmap image, CancellationToken cancellationToken = default);
     }
 
+    /// <summary>인식된 단어 하나와 그 이미지 상 위치(픽셀). 하이라이트에 사용.</summary>
+    public sealed record OcrWordBox(string Text, Rectangle Bounds);
+
     /// <summary>OCR 실행 결과.</summary>
     public sealed record OcrResult(
         string Text,
         string EngineName,
         TimeSpan Elapsed,
-        double? Confidence)
+        double? Confidence,
+        IReadOnlyList<OcrWordBox> Words)
     {
         /// <summary>추출된 문자 수(공백 포함).</summary>
         public int CharCount => Text.Length;

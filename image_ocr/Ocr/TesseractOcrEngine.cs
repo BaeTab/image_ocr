@@ -8,18 +8,19 @@ namespace image_ocr.Ocr
 {
     /// <summary>
     /// Tesseract 오픈소스 OCR 엔진.
-    /// 실행 파일 옆의 tessdata\ 폴더에 있는 학습데이터(kor, eng)를 사용한다.
-    /// 어느 PC에서나 동일하게 동작하며 문서/긴 텍스트 인식 정확도가 높다.
+    /// tessdata\ 폴더의 학습데이터(kor, eng 등)를 사용하며, 인식 언어를 런타임에 바꿀 수 있다.
+    /// 단어별 좌표(하이라이트용)도 함께 반환한다.
     /// </summary>
     public sealed class TesseractOcrEngine : IOcrEngine, IDisposable
     {
         private readonly string _tessdataPath;
-        private readonly string _language;   // 예: "kor+eng"
         private readonly bool _available;
         private readonly string? _unavailableReason;
+        private readonly IReadOnlyList<string> _availableLanguages;
 
         private readonly object _gate = new();
         private TesseractEngine? _engine;
+        private string _language;   // 예: "kor+eng"
         private volatile bool _disposed;
 
         public TesseractOcrEngine()
@@ -27,11 +28,9 @@ namespace image_ocr.Ocr
             // 단일파일 환경에서도 동작하도록 tessdata 경로를 확보(+ 네이티브 탐색경로 설정).
             _tessdataPath = RuntimeAssets.EnsureTessdata();
 
-            var languages = new List<string>();
-            if (File.Exists(Path.Combine(_tessdataPath, "kor.traineddata"))) languages.Add("kor");
-            if (File.Exists(Path.Combine(_tessdataPath, "eng.traineddata"))) languages.Add("eng");
+            _availableLanguages = ScanLanguages(_tessdataPath);
 
-            if (languages.Count == 0)
+            if (_availableLanguages.Count == 0)
             {
                 _available = false;
                 _language = "eng";
@@ -42,7 +41,9 @@ namespace image_ocr.Ocr
             else
             {
                 _available = true;
-                _language = string.Join('+', languages);
+                // 기본: kor+eng 우선, 없으면 있는 것 전부.
+                var prefer = new[] { "kor", "eng" }.Where(_availableLanguages.Contains).ToList();
+                _language = string.Join('+', prefer.Count > 0 ? prefer : _availableLanguages);
             }
         }
 
@@ -51,6 +52,32 @@ namespace image_ocr.Ocr
         public bool IsAvailable => _available;
 
         public string? UnavailableReason => _unavailableReason;
+
+        /// <summary>tessdata 에서 감지된 사용 가능한 언어 코드(예: kor, eng).</summary>
+        public IReadOnlyList<string> AvailableLanguages => _availableLanguages;
+
+        /// <summary>현재 선택된 언어 코드 목록.</summary>
+        public IReadOnlyList<string> SelectedLanguages =>
+            _language.Split('+', StringSplitOptions.RemoveEmptyEntries);
+
+        /// <summary>인식 언어를 바꾼다. 다음 인식 때 엔진이 새 언어로 재생성된다.</summary>
+        public void SetLanguages(IEnumerable<string> languages)
+        {
+            var langs = languages
+                .Where(l => _availableLanguages.Contains(l))
+                .Distinct()
+                .ToList();
+            if (langs.Count == 0) return;
+
+            string joined = string.Join('+', langs);
+            lock (_gate)
+            {
+                if (joined == _language) return;
+                _language = joined;
+                _engine?.Dispose();   // 다음 인식 때 새 언어로 재생성
+                _engine = null;
+            }
+        }
 
         public Task<OcrResult> RecognizeAsync(Bitmap image, CancellationToken cancellationToken = default)
         {
@@ -82,15 +109,45 @@ namespace image_ocr.Ocr
 
                     string text = page.GetText() ?? string.Empty;
                     float confidence = page.GetMeanConfidence(); // 0.0 ~ 1.0
+                    var words = ExtractWords(page);
 
                     sw.Stop();
                     return new OcrResult(
                         Text: NormalizeLineEndings(text).TrimEnd('\r', '\n'),
                         EngineName: DisplayName,
                         Elapsed: sw.Elapsed,
-                        Confidence: confidence);
+                        Confidence: confidence,
+                        Words: words);
                 }
             }, cancellationToken);
+        }
+
+        private static List<OcrWordBox> ExtractWords(Page page)
+        {
+            var words = new List<OcrWordBox>();
+            using ResultIterator iter = page.GetIterator();
+            iter.Begin();
+            do
+            {
+                if (iter.TryGetBoundingBox(PageIteratorLevel.Word, out Rect r))
+                {
+                    string w = iter.GetText(PageIteratorLevel.Word) ?? string.Empty;
+                    if (!string.IsNullOrWhiteSpace(w))
+                        words.Add(new OcrWordBox(w, new Rectangle(r.X1, r.Y1, r.Width, r.Height)));
+                }
+            }
+            while (iter.Next(PageIteratorLevel.Word));
+            return words;
+        }
+
+        private static IReadOnlyList<string> ScanLanguages(string tessdataPath)
+        {
+            if (!Directory.Exists(tessdataPath)) return Array.Empty<string>();
+            return Directory.GetFiles(tessdataPath, "*.traineddata")
+                .Select(f => Path.GetFileNameWithoutExtension(f))
+                .Where(n => !string.Equals(n, "osd", StringComparison.OrdinalIgnoreCase))
+                .OrderBy(n => n)
+                .ToList();
         }
 
         private static string NormalizeLineEndings(string text) =>

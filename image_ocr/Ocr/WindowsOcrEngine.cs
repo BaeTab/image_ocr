@@ -55,17 +55,32 @@ namespace image_ocr.Ocr
             WinRtOcrResult raw = await _engine.RecognizeAsync(softwareBitmap).AsTask(cancellationToken)
                 .ConfigureAwait(false);
 
-            // 줄 구조를 보존해서 텍스트를 조립한다.
+            // 축소했다면 단어 좌표를 원본 크기로 되돌리기 위한 배율.
+            double sx = (double)image.Width / prepared.Width;
+            double sy = (double)image.Height / prepared.Height;
+
+            // 줄 구조를 보존해서 텍스트를 조립하고, 단어별 좌표를 수집한다.
             var sb = new StringBuilder();
+            var words = new List<OcrWordBox>();
             foreach (OcrLine line in raw.Lines)
+            {
                 sb.AppendLine(line.Text);
+                foreach (OcrWord w in line.Words)
+                {
+                    var r = w.BoundingRect;
+                    words.Add(new OcrWordBox(w.Text, new Rectangle(
+                        (int)Math.Round(r.X * sx), (int)Math.Round(r.Y * sy),
+                        (int)Math.Round(r.Width * sx), (int)Math.Round(r.Height * sy))));
+                }
+            }
 
             sw.Stop();
             return new OcrResult(
                 Text: sb.ToString().TrimEnd('\r', '\n'),
                 EngineName: DisplayName,
                 Elapsed: sw.Elapsed,
-                Confidence: null); // Windows OCR 은 신뢰도 점수를 노출하지 않음
+                Confidence: null, // Windows OCR 은 신뢰도 점수를 노출하지 않음
+                Words: words);
         }
 
         private static OcrEngine? CreateEngine(out string? languageTag)

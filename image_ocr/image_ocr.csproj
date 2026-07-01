@@ -8,6 +8,7 @@
     <Nullable>enable</Nullable>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ForceDesignerDpiUnaware>true</ForceDesignerDpiUnaware>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <!-- Tesseract 네이티브 DLL(x64) 로딩을 위해 x64 고정 -->
@@ -31,6 +32,13 @@
   <ItemGroup>
     <PackageReference Include="DevExpress.Win.Design" Version="25.1.*" />
     <PackageReference Include="Tesseract" Version="5.2.0" />
+  </ItemGroup>
+
+  <!-- 창/작업표시줄 아이콘용: app.ico 를 다중 해상도 그대로 임베드 -->
+  <ItemGroup>
+    <EmbeddedResource Include="app.ico">
+      <LogicalName>app.ico</LogicalName>
+    </EmbeddedResource>
   </ItemGroup>
 
   <!-- 단일 exe 를 위해 tessdata 와 네이티브 DLL 을 exe 안에 임베드(Release/게시). -->
